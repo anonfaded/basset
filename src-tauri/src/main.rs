@@ -8,6 +8,11 @@ use std::io::BufWriter;
 use std::path::Path;  
 
 #[tauri::command]  
+fn log_message(message: String) {
+    eprintln!("🔵 [APP] {}", message);
+}
+
+#[tauri::command]  
 async fn compress_image(input_path: String, output_path: String, quality: String) -> Result<String, String> {  
     let img = ImageReader::open(&input_path)  
         .map_err(|_| "inputFileErr".to_string())?  
@@ -73,7 +78,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![compress_image])  
+        .invoke_handler(tauri::generate_handler![compress_image, log_message])  
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

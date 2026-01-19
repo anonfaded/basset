@@ -16,9 +16,11 @@ import { open } from "@tauri-apps/plugin-shell";
 import { useTranslation } from "react-i18next";
 import useFFmpeg from "@/hooks/useFFmpeg";
 import useSpleeter from "@/hooks/useSpleeter";
+import useDemucs from "@/hooks/useDemucs";
 import useImage from "@/hooks/useImage";
 import { useFileStore } from "@/stores/useFileStore";
 import { useOperationStore } from "@/stores/useOperationStore";
+import { useDemucsSettingStore } from "@/stores/useDemucsSettingStore";
 import { useEffect, useState } from "react";
 
 import { ensureDir, getIsAudio } from "@/utils/fsUtils";
@@ -26,10 +28,12 @@ import { ensureDir, getIsAudio } from "@/utils/fsUtils";
 import { Dialog, DialogContent } from "./Dialog";
 import { Ripple } from "react-ripple-click";
 import { Progress } from "./Progress";
+import { createLogger } from "@/utils/logger";
 
 interface ExecuteBtnProps {
   command?: string[];
   isSpleeter?: boolean;
+  isDemucs?: boolean;
   isImage?: boolean;
   text?: string;
   outputFormat?: string;
@@ -40,12 +44,14 @@ interface ExecuteBtnProps {
 function ExecuteBtn({
   command,
   isSpleeter = false,
+  isDemucs = false,
   isImage = false,
   text,
   outputFormat,
   customFunction,
   validation,
 }: ExecuteBtnProps) {
+  const logger = createLogger("🎬 [ExecuteBtn]");
   const {
     runFFmpeg,
     killFFmpeg,
@@ -61,28 +67,46 @@ function ExecuteBtn({
     errInfo: errInfoSpleeter,
   } = useSpleeter();
   const {
+    runDemucs,
+    killDemucs,
+    cmdStatus: cmdStatusDemucs,
+    progress: progressDemucs,
+    errInfo: errInfoDemucs,
+  } = useDemucs();
+  const {
     cmdStatus: cmdStatusImage,
     errInfo: errInfoImage,
     progress: progressImage,
     compressImage,
   } = useImage();
+  const { device: demucsDevice } = useDemucsSettingStore();
 
   const cmdStatus = isSpleeter
     ? cmdStatusSpleeter
-    : isImage
-      ? cmdStatusImage
-      : cmdStatusFFmpeg;
+    : isDemucs
+      ? cmdStatusDemucs
+      : isImage
+        ? cmdStatusImage
+        : cmdStatusFFmpeg;
   const progress = isSpleeter
     ? progressSpleeter
-    : isImage
-      ? progressImage
-      : progressFFmpeg;
+    : isDemucs
+      ? progressDemucs
+      : isImage
+        ? progressImage
+        : progressFFmpeg;
   const errInfo = isSpleeter
     ? errInfoSpleeter
-    : isImage
-      ? errInfoImage
-      : errInfoFFmpeg;
-  const killProcess = isSpleeter ? killSpleeter : killFFmpeg;
+    : isDemucs
+      ? errInfoDemucs
+      : isImage
+        ? errInfoImage
+        : errInfoFFmpeg;
+  const killProcess = isSpleeter
+    ? killSpleeter
+    : isDemucs
+      ? killDemucs
+      : killFFmpeg;
 
   const [outputPath, setOutputPath] = useState("");
   const [outputDir, setOutputDir] = useState("");
@@ -95,54 +119,88 @@ function ExecuteBtn({
   const { cmdProcessing } = useOperationStore();
 
   async function onStartBtnClick() {
-    if (validation !== undefined) {
-      validation();
-      return;
-    }
+    try {
+      console.log("📍 Button clicked - isSpleeter:", isSpleeter, "command:", command);
+      logger.log("Button clicked - isSpleeter: " + isSpleeter);
+      await logger.flush();
+      
+      if (validation !== undefined) {
+        logger.log("Running validation function");
+        await logger.flush();
+        validation();
+        return;
+      }
 
-    await ensureDir("inputTxtFiles");
-    await ensureDir("output");
+      logger.log("Creating directories");
+      await logger.flush();
+      // Ensure parent app data directory exists first (macOS issue)
+      const appDataDir = await appLocalDataDir();
+      logger.log("App data dir: " + appDataDir);
+      await logger.flush();
+      await ensureDir(appDataDir);
+      await ensureDir("inputTxtFiles");
+      await ensureDir("output");
 
-    if (customFunction !== undefined) await customFunction();
+      if (customFunction !== undefined) {
+        logger.log("Running custom function");
+        await logger.flush();
+        await customFunction();
+      }
 
-    const fileExt = await extname(filePath);
-    const fileName = (await basename(filePath)).replace(`.${fileExt}`, "");
+      logger.log("Processing file paths");
+      await logger.flush();
+      const fileExt = await extname(filePath);
+      const fileName = (await basename(filePath)).replace(`.${fileExt}`, "");
 
-    const date = new Date();
-    const outputFileUniqueId = `${date.getFullYear()}_${Math.random().toString().slice(2, 7)}_${date.getMonth()}`;
+      const date = new Date();
+      const outputFileUniqueId = `${date.getFullYear()}_${Math.random().toString().slice(2, 7)}_${date.getMonth()}`;
 
-    const outputFileFormat =
-      outputFormat === undefined ? fileExt : outputFormat;
+      const outputFileFormat =
+        outputFormat === undefined ? fileExt : outputFormat;
 
-    const outputFileBasename = `${fileName}_${outputFileUniqueId}.${outputFileFormat}`;
+      const outputFileBasename = `${fileName}_${outputFileUniqueId}.${outputFileFormat}`;
 
-    const tempFilePath = await join(
-      await appLocalDataDir(),
-      "output",
-      outputFileBasename,
-    );
-    const isAudio = getIsAudio(tempFilePath);
-    const finalDir = isAudio
-      ? await audioDir()
-      : isImage
-        ? await pictureDir()
-        : await videoDir();
-
-    const finalPath = await join(finalDir, outputFileBasename);
-
-    setOutputPath(finalPath);
-    setOutputDir(finalDir);
-
-    if (!isImage) {
-      isSpleeter
-        ? await runSpleeter(outputFileBasename)
-        : await runFFmpeg(command as string[], tempFilePath);
-    } else {
-      await compressImage(
-        filePath,
-        finalPath,
-        outputFormat ? "100" : (command as string[])[0],
+      const tempFilePath = await join(
+        await appLocalDataDir(),
+        "output",
+        outputFileBasename,
       );
+      const isAudio = getIsAudio(tempFilePath);
+      const finalDir = isAudio
+        ? await audioDir()
+        : isImage
+          ? await pictureDir()
+          : await videoDir();
+
+      const finalPath = await join(finalDir, outputFileBasename);
+
+      logger.log("Setting output paths - finalPath: " + finalPath);
+      await logger.flush();
+      setOutputPath(finalPath);
+      setOutputDir(finalDir);
+
+      logger.log("Starting operation - isSpleeter: " + isSpleeter + ", isDemucs: " + isDemucs);
+      await logger.flush();
+      
+      if (!isImage) {
+        if (isSpleeter) {
+          await runSpleeter(outputFileBasename);
+        } else if (isDemucs) {
+          await runDemucs(outputFileBasename, demucsDevice);
+        } else {
+          await runFFmpeg(command as string[], tempFilePath);
+        }
+      } else {
+        await compressImage(
+          filePath,
+          finalPath,
+          outputFormat ? "100" : (command as string[])[0],
+        );
+      }
+    } catch (error) {
+      logger.error("Exception in onStartBtnClick: " + String(error));
+      await logger.flush();
+      console.error("Full error:", error);
     }
   }
 

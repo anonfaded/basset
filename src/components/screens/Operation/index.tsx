@@ -18,6 +18,7 @@ function Operation() {
         {operationType === OperationType.TRIM && <Trim />}
         {operationType === OperationType.CUT && <Cut />}
         {operationType === OperationType.SPLEETER && <RemoveMusic />}
+        {operationType === OperationType.DEMUCS && <RemoveMusic />}
         {operationType === OperationType.COMPRESS && <Compress />}
         {operationType === OperationType.CONVERT && <Convert />}
         {operationType === OperationType.QUALITY_DOWNGRADE && <Quality />}

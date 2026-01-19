@@ -9,6 +9,7 @@ export enum OperationType {
   QUALITY_DOWNGRADE,
   CONVERT,
   SPLEETER,
+  DEMUCS,
 }
 
 type State = {

@@ -23,7 +23,7 @@ Simplicity and ease ✨ - Speed ⚡ - Privacy 🔏
 
 ## Features 🌟
 
-- 🤖 **AI Spleeter model Instruments removing (Windows and Linux only)**
+- 🤖 **AI Spleeter model Instruments removing**
 - ✂️ **Media cutting and trimming**
 - 🔄 **Media conversion**
 - 📉 **Media compression**

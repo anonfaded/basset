@@ -1,4 +1,6 @@
 import { useTranslation } from "react-i18next";
+import { platform } from "@tauri-apps/plugin-os";
+import { useEffect, useState } from "react";
 
 import { useFileStore } from "@/stores/useFileStore";
 import { OperationType, useOperationStore } from "@/stores/useOperationStore";
@@ -6,14 +8,32 @@ import { MediaType } from "@/stores/useFileStore";
 
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/Dialog";
 import { Ripple } from "react-ripple-click";
-import { platform } from "@tauri-apps/plugin-os";
-
-const platformName = platform();
 
 function OperationButtonsDialog() {
   const { t, i18n } = useTranslation();
   const { filePath, setFilePath, mediaType } = useFileStore();
   const { setOperationType } = useOperationStore();
+  const [currentPlatform, setCurrentPlatform] = useState<string>("");
+  const [showDemucs, setShowDemucs] = useState(false);
+
+  useEffect(() => {
+    const detectPlatform = async () => {
+      const os = await platform();
+      setCurrentPlatform(os);
+      // Show Demucs for macOS and Linux, Spleeter for Windows
+      setShowDemucs(os === "darwin" || os === "linux");
+    };
+    detectPlatform();
+  }, []);
+
+  const handleMusicRemoval = () => {
+    if (showDemucs) {
+      setOperationType(OperationType.DEMUCS);
+    } else {
+      setOperationType(OperationType.SPLEETER);
+    }
+  };
+
   return (
     <Dialog onOpenChange={() => setFilePath("")} open={filePath !== ""}>
       <DialogContent dir={i18n.dir()} className="gap-1">
@@ -34,16 +54,14 @@ function OperationButtonsDialog() {
         {/* Music removal, Trimming and Cutting: Video and Audio */}
         {(mediaType === MediaType.AUDIO || mediaType === MediaType.VIDEO) && (
           <>
-            {platformName !== "macos" && (
-              <button
-                onClick={() => setOperationType(OperationType.SPLEETER)}
-                className="ripple flex w-full items-center gap-4 rounded-sm bg-foreground px-4 py-3 text-left text-background"
-              >
-                <SpleeterIcon />
-                <span>{t("operations.spleeterOperation")}</span>
-                <Ripple />
-              </button>
-            )}
+            <button
+              onClick={handleMusicRemoval}
+              className="ripple flex w-full items-center gap-4 rounded-sm bg-foreground px-4 py-3 text-left text-background"
+            >
+              <SpleeterIcon />
+              <span>{t("operations.spleeterOperation")}</span>
+              <Ripple />
+            </button>
             <button
               onClick={() => setOperationType(OperationType.TRIM)}
               className="ripple flex w-full items-center gap-4 rounded-sm bg-foreground px-4 py-3 text-left text-background"
@@ -90,8 +108,6 @@ function OperationButtonsDialog() {
     </Dialog>
   );
 }
-
-export default OperationButtonsDialog;
 
 function SpleeterIcon() {
   return (
