@@ -98,11 +98,23 @@ function useDemucs() {
             // We need to move vocals.mp3 to Downloads/Basset with timestamp
             
             const downDir = await downloadDir();
+            console.log("Downloads directory:", downDir);
+            logger.log("Downloads directory: " + downDir);
+            
             const bassetOutputDir = await join(downDir, "Basset");
+            console.log("Target Basset directory:", bassetOutputDir);
+            logger.log("Target Basset directory: " + bassetOutputDir);
             
             // Create Basset folder in Downloads if it doesn't exist
-            await ensureDir(bassetOutputDir);
-            logger.log(`Output directory ready: ${bassetOutputDir}`);
+            try {
+              await ensureDir(bassetOutputDir);
+              console.log("✅ Basset directory ensured:", bassetOutputDir);
+              logger.log(`✅ Basset directory ensured: ${bassetOutputDir}`);
+            } catch (dirErr) {
+              console.error("Error creating Basset directory:", dirErr);
+              logger.error("Error creating Basset directory: " + String(dirErr));
+              throw dirErr;
+            }
             await logger.flush();
 
             // Generate timestamp for filename
@@ -111,6 +123,7 @@ function useDemucs() {
             
             const vocalsFilename = `vocals_${timestamp}.mp3`;
             const vocalsOutputPath = await join(bassetOutputDir, vocalsFilename);
+            console.log("Final vocals output path:", vocalsOutputPath);
 
             // Get the original filename without extension
             const originalBasename = await basename(filePath);
@@ -121,6 +134,7 @@ function useDemucs() {
             const demucsOutputRootDir = await join("..", "..", "demucs-output");
             const demucsOutputDir = await join(demucsOutputRootDir, demucsModel, filenameWithoutExt);
             const vocalsSourcePath = await join(demucsOutputDir, "vocals.mp3");
+            console.log("Source vocals path:", vocalsSourcePath);
 
             logger.log(`Moving vocals from: ${vocalsSourcePath}`);
             logger.log(`To: ${vocalsOutputPath}`);
@@ -128,24 +142,37 @@ function useDemucs() {
 
             // Move vocals.mp3 to Downloads/Basset with timestamp
             const { copyFile, remove } = await import("@tauri-apps/plugin-fs");
-            await copyFile(vocalsSourcePath, vocalsOutputPath);
-            logger.log("✅ Vocals file copied successfully");
+            try {
+              await copyFile(vocalsSourcePath, vocalsOutputPath);
+              console.log("✅ Vocals file copied successfully to:", vocalsOutputPath);
+              logger.log("✅ Vocals file copied successfully");
+            } catch (copyErr) {
+              console.error("Error copying vocals file:", copyErr);
+              logger.error("Error copying vocals file: " + String(copyErr));
+              throw copyErr;
+            }
             await logger.flush();
 
             // Delete the demucs-output directory to clean up
             logger.log(`Cleaning up temporary files in: ${demucsOutputRootDir}`);
-            await remove(demucsOutputRootDir, { recursive: true });
-            logger.log("✅ Temporary files cleaned up");
+            try {
+              await remove(demucsOutputRootDir, { recursive: true });
+              console.log("✅ Temporary files cleaned up");
+              logger.log("✅ Temporary files cleaned up");
+            } catch (cleanupErr) {
+              console.warn("Warning: Could not clean up temporary files:", cleanupErr);
+              logger.log("⚠️ Warning: Could not clean up temporary files: " + String(cleanupErr));
+            }
             await logger.flush();
 
             setCmdStatus("success");
             await logger.success(`Music separation complete! Vocals saved to: ${vocalsOutputPath}`);
             await logger.flush();
           } catch (err) {
-            console.error("Error with output files:", err);
-            logger.error("Error with output files: " + String(err));
+            console.error("❌ Error with output files:", err);
+            logger.error("❌ Error with output files: " + String(err));
             await logger.flush();
-            setErrInfo("outputFileErr");
+            setErrInfo(String(err));
             setCmdStatus("error");
           }
 

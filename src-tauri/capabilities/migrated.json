@@ -25,7 +25,10 @@
         "$APPLOCALDATA/**/*",
         "$VIDEO/*",
         "$AUDIO/*",
-        "$PICTURE/*"
+        "$PICTURE/*",
+        "$DOWNLOADS/*",
+        "$DOWNLOADS/**/*",
+        "$APP/**/*"
       ]
     },
     {

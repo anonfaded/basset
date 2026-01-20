@@ -7,6 +7,7 @@ import {
   extractPreviewImage,
   getMediaDuration,
 } from "@/utils/ffmpegHelperUtils";
+import { createLogger } from "@/utils/logger";
 
 import { useState } from "react";
 import { useFileStore } from "@/stores/useFileStore";
@@ -47,10 +48,30 @@ const intQualityMap = {
 type YtDlpMediaType = "video" | "audio";
 type QualityType = "high" | "medium" | "low";
 
+interface DownloadProgress {
+  progress: number;
+  speed: string;
+  eta: string;
+  fileSize: string;
+  downloadedSize: string;
+  errorMessage: string | null;
+}
+
 function DownloadFromInternet() {
+  const logger = createLogger("📥 [YTDLP Download]");
   const [url, setUrl] = useState("");
   const [mediaType, setMediaType] = useState<YtDlpMediaType>("video");
   const [quality, setQuality] = useState<QualityType>("medium");
+  const [downloadProgress, setDownloadProgress] = useState<DownloadProgress>({
+    progress: 0,
+    speed: "0 B/s",
+    eta: "00:00",
+    fileSize: "0 B",
+    downloadedSize: "0 B",
+    errorMessage: null,
+  });
+  const [ytDlpProcess, setYtDlpProcess] = useState<any>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const { t, i18n } = useTranslation();
   const { cmdProcessing, setCmdProcessing } = useOperationStore();
@@ -73,11 +94,26 @@ function DownloadFromInternet() {
       return;
     }
 
+    await logger.log(`Starting download: ${url.substring(0, 50)}...`);
+    await logger.log(`Format: ${mediaType}, Quality: ${quality}`);
+    await logger.flush();
+
     setCmdProcessing(true);
+    setIsDialogOpen(true);
+    setDownloadProgress({
+      progress: 0,
+      speed: "0 B/s",
+      eta: "00:00",
+      fileSize: "0 B",
+      downloadedSize: "0 B",
+      errorMessage: null,
+    });
 
     const downloadPath = await downloadDir();
+    await logger.log(`Download path: ${downloadPath}`);
 
     const outputTemplate = await join(downloadPath, "%(id)s.%(ext)s");
+    await logger.log(`Output template: ${outputTemplate}`);
 
     const ytDlpCmd = [
       "--update",
@@ -86,6 +122,9 @@ function DownloadFromInternet() {
       outputTemplate,
       "-P",
       downloadPath,
+      "--progress-template",
+      "download %(progress)s",
+      "--progress",
       url,
       "--print-json",
     ];
@@ -108,16 +147,32 @@ function DownloadFromInternet() {
       );
 
     const ytDlpSidecar = Command.sidecar("bin/ytDlp", ytDlpCmd);
+    setYtDlpProcess(ytDlpSidecar);
+
+    await logger.log(`YtDlp sidecar created with ${ytDlpCmd.length} args`);
+    await logger.flush();
+    console.log("YtDlp sidecar created, args:", ytDlpCmd);
 
     let downloadedFilePath: string | null = null;
     let isStdoutProcessed = false;
+    let hasErrorOccurred = false;
+
     ytDlpSidecar.on("close", async ({ code }) => {
-      if (code === 0) {
+      await logger.log(`✅ YtDlp closed with code: ${code}`);
+      await logger.flush();
+      setYtDlpProcess(null);
+      if (code === 0 && !hasErrorOccurred) {
         while (!isStdoutProcessed && downloadedFilePath === null) {
           await new Promise((resolve) => setTimeout(resolve, 10));
         }
 
+        await logger.log(`📥 Download succeeded! File: ${downloadedFilePath}`);
+        await logger.success(`Download completed successfully`);
+        await logger.flush();
+
         setCmdProcessing(false);
+        setIsDialogOpen(false);
+        toast.success(t("uploadPage.downloadSuccess") || "Download completed!");
 
         let determinedMediaType: MediaType | null = null;
 
@@ -144,21 +199,33 @@ function DownloadFromInternet() {
             setDuration(data);
           });
         }
-      } else {
+      } else if (code !== 0 && !hasErrorOccurred) {
         setCmdProcessing(false);
+        const errorMsg = t("uploadPage.downloadFailed") || "Download failed. Check logs for details.";
+        setDownloadProgress((prev) => ({ ...prev, errorMessage: errorMsg }));
+        toast.error(errorMsg);
       }
     });
 
     ytDlpSidecar.on("error", (error) => {
-      console.log(error);
+      console.error("yt-dlp error:", error);
+      logger.error(`❌ YtDlp error: ${error.message || error}`);
+      hasErrorOccurred = true;
+      setYtDlpProcess(null);
       setCmdProcessing(false);
+      const errorMsg = `Error: ${error.message || error}. Make sure yt-dlp is installed.`;
+      setDownloadProgress((prev) => ({ ...prev, errorMessage: errorMsg }));
+      toast.error(errorMsg);
     });
 
     ytDlpSidecar.stdout.on("data", async (data) => {
+      console.log("YTDLP STDOUT:", data);
+      logger.log(`📤 STDOUT: ${data.substring(0, 80)}`);
       try {
         const urlData = JSON.parse(data);
         const filename = `${urlData["id"]}.${mediaType === "audio" ? "mp3" : urlData["ext"]}`;
-        console.log(urlData);
+        console.log("Parsed download info:", urlData);
+        logger.log(`✅ Parsed metadata: ${filename}`);
         const path = await join(downloadPath, filename);
         downloadedFilePath = path;
       } finally {
@@ -167,7 +234,35 @@ function DownloadFromInternet() {
     });
 
     ytDlpSidecar.stderr.on("data", (data) => {
-      console.log(data);
+      console.log("YTDLP STDERR:", data);
+      logger.log(`STDERR: ${data.substring(0, 100)}`);
+
+      // Parse progress from yt-dlp progress template output
+      // Format: "download {_total_bytes_str}: {_percent_str}% at {_speed_str} ETA {_eta_hms}"
+      // Example: "download 45.2MiB: 45.2% at 1.5MiB/s ETA 00:30"
+      const progressRegex = /download\s+[\d.]+\w+:\s+(\d+\.?\d*)%\s+at\s+([\d.]+\s*\w+\/s)\s+ETA\s+([\d:]+)/;
+      const progressMatch = data.match(progressRegex);
+
+      if (progressMatch) {
+        const [, progress, speed, eta] = progressMatch;
+        const progressNum = parseFloat(progress);
+        
+        logger.log(`📊 Progress: ${progressNum}% | Speed: ${speed} | ETA: ${eta}`);
+
+        setDownloadProgress({
+          progress: progressNum,
+          speed: speed.trim(),
+          eta: eta,
+          fileSize: "Calculating...",
+          downloadedSize: "Calculating...",
+          errorMessage: null,
+        });
+      } else if (!data.match(/WARNING|ERROR/i)) {
+        // Only log non-warning/error messages that don't match progress
+        logger.log(`ℹ️ Info: ${data.substring(0, 60)}`);
+      }
+
+      // Check for errors
       const errorPatterns = [
         {
           regex:
@@ -204,16 +299,62 @@ function DownloadFromInternet() {
       );
 
       if (matchedError) {
+        const errorMsg = t(`uploadPage.${matchedError.key}`);
+        setDownloadProgress((prev) => ({ ...prev, errorMessage: errorMsg }));
         setCmdProcessing(false);
-        toast.error(t(`uploadPage.${matchedError.key}`));
+        toast.error(errorMsg);
       }
     });
 
-    await ytDlpSidecar.spawn();
+    try {
+      await logger.log("🚀 Spawning ytDlp sidecar...");
+      await logger.flush();
+      console.log("Starting spawn of ytDlp sidecar...");
+      await ytDlpSidecar.spawn();
+      console.log("✅ yt-dlp process spawned successfully");
+      await logger.log("✅ YtDlp spawned successfully!");
+      await logger.flush();
+    } catch (error) {
+      console.error("❌ Failed to spawn yt-dlp:", error);
+      await logger.error(`❌ Failed to spawn ytDlp: ${(error as any)?.message || error}`);
+      await logger.flush();
+      console.error("Error details:", {
+        name: (error as any)?.name,
+        message: (error as any)?.message,
+        code: (error as any)?.code,
+        errno: (error as any)?.errno,
+      });
+      hasErrorOccurred = true;
+      setCmdProcessing(false);
+      const errorMsg = `Failed to start download: ${(error as any)?.message || error}`;
+      setDownloadProgress((prev) => ({ ...prev, errorMessage: errorMsg }));
+      toast.error(errorMsg);
+    }
   }
 
+  const handleCancel = async () => {
+    if (ytDlpProcess) {
+      try {
+        await ytDlpProcess.kill();
+        console.log("yt-dlp process killed");
+      } catch (error) {
+        console.error("Error killing process:", error);
+      }
+    }
+    setCmdProcessing(false);
+    setYtDlpProcess(null);
+    setIsDialogOpen(false);
+    toast.info(t("uploadPage.downloadCancelled") || "Download cancelled");
+  };
+
   return (
-    <Dialog open={cmdProcessing === true ? cmdProcessing : undefined}>
+    <Dialog open={isDialogOpen} onOpenChange={(open) => {
+      if (!open && cmdProcessing) {
+        handleCancel();
+      } else {
+        setIsDialogOpen(open);
+      }
+    }}>
       <DialogTrigger className="ripple relative flex w-64 items-center justify-center rounded-lg border border-border p-2">
         <Ripple />
         <p>{t("uploadPage.downloadFromInternetDialogBtn")}</p>
@@ -287,18 +428,65 @@ function DownloadFromInternet() {
               <SelectItem value="low">{t("uploadPage.lowOption")}</SelectItem>
             </SelectContent>
           </Select>
-          <button
-            disabled={cmdProcessing || !url}
-            className="ripple transform rounded-lg bg-foreground px-4 py-2 font-bold text-background disabled:bg-foreground/50"
-            type="submit"
-          >
-            <Ripple />
-            <div className="flex items-center justify-center">
-              {cmdProcessing
-                ? t("uploadPage.downloadInProgress")
-                : t("uploadPage.downloadFromInternetBtn")}
+          <div className="flex gap-2">
+            <button
+              disabled={cmdProcessing || !url}
+              className="ripple flex-1 transform rounded-lg bg-foreground px-4 py-2 font-bold text-background disabled:bg-foreground/50"
+              type="submit"
+            >
+              <Ripple />
+              <div className="flex items-center justify-center">
+                {cmdProcessing
+                  ? t("uploadPage.downloadInProgress")
+                  : t("uploadPage.downloadFromInternetBtn")}
+              </div>
+            </button>
+            {cmdProcessing && (
+              <button
+                onClick={handleCancel}
+                className="ripple rounded-lg bg-red-600 px-4 py-2 font-bold text-white hover:bg-red-700"
+                type="button"
+              >
+                <Ripple />
+                Cancel
+              </button>
+            )}
+          </div>
+
+          {cmdProcessing && (
+            <div className="mt-4 space-y-2 rounded-lg bg-slate-900 p-4">
+              {/* Progress Bar */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-semibold text-foreground">
+                    {downloadProgress.progress.toFixed(1)}%
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {downloadProgress.downloadedSize} / {downloadProgress.fileSize}
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-slate-800">
+                  <div
+                    className="h-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all duration-300"
+                    style={{ width: `${Math.min(downloadProgress.progress, 100)}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Speed and ETA */}
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Speed: {downloadProgress.speed}</span>
+                <span>ETA: {downloadProgress.eta}</span>
+              </div>
+
+              {/* Error Message */}
+              {downloadProgress.errorMessage && (
+                <div className="rounded-lg bg-red-900/30 p-2 text-xs text-red-400">
+                  {downloadProgress.errorMessage}
+                </div>
+              )}
             </div>
-          </button>
+          )}
         </form>
       </DialogContent>
     </Dialog>
