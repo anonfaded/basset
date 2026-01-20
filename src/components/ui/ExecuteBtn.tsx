@@ -120,7 +120,7 @@ function ExecuteBtn({
   const { t, i18n } = useTranslation();
 
   const { filePath } = useFileStore();
-  const { cmdProcessing } = useOperationStore();
+  const { cmdProcessing, outputPath: storeOutputPath, outputDir: storeOutputDir } = useOperationStore();
 
   async function onStartBtnClick() {
     try {
@@ -228,11 +228,17 @@ function ExecuteBtn({
   }, [errInfo, t, cmdStatus]);
 
   async function openOutputPath() {
-    await open(outputPath);
+    const pathToOpen = isDemucs ? storeOutputPath : outputPath;
+    if (pathToOpen) {
+      await open(pathToOpen);
+    }
   }
 
   async function openOutputDir() {
-    await open(outputDir);
+    const dirToOpen = isDemucs ? storeOutputDir : outputDir;
+    if (dirToOpen) {
+      await open(dirToOpen);
+    }
   }
 
   return (

@@ -16,7 +16,7 @@ function useDemucs() {
   const [progress, setProgress] = useState(0);
 
   const { filePath } = useFileStore();
-  const { setCmdProcessing, setLogs, process, setProcess } =
+  const { setCmdProcessing, setLogs, process, setProcess, setOutputPath, setOutputDir } =
     useOperationStore();
 
   /**
@@ -166,6 +166,10 @@ function useDemucs() {
               logger.log("⚠️ Warning: Could not clean up temporary files: " + String(cleanupErr));
             }
             await logger.flush();
+
+            // Set output paths for the success dialog
+            setOutputPath(vocalsOutputPath);
+            setOutputDir(bassetOutputDir);
 
             setCmdStatus("success");
             await logger.success(`Music separation complete! Vocals saved to: ${vocalsOutputPath}`);

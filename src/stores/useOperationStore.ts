@@ -17,6 +17,8 @@ type State = {
   cmdProcessing: boolean;
   logs: string[];
   process: Child | null;
+  outputPath: string;
+  outputDir: string;
 };
 
 type Action = {
@@ -24,6 +26,8 @@ type Action = {
   setCmdProcessing: (cmdProcessing: State["cmdProcessing"]) => void;
   setLogs: (logs: State["logs"] | string) => void;
   setProcess: (process: State["process"]) => void;
+  setOutputPath: (path: string) => void;
+  setOutputDir: (dir: string) => void;
 };
 
 export const useOperationStore = create<State & Action>((set) => ({
@@ -32,6 +36,8 @@ export const useOperationStore = create<State & Action>((set) => ({
   cmdProcessing: false,
   logs: [],
   process: null,
+  outputPath: "",
+  outputDir: "",
   setOperationType: (type) => set(() => ({ operationType: type })),
   setCmdProcessing: (cmdProcessing) =>
     set(() => ({ cmdProcessing: cmdProcessing })),
@@ -40,4 +46,6 @@ export const useOperationStore = create<State & Action>((set) => ({
       logs: Array.isArray(logs) ? logs : [...state.logs, logs],
     })),
   setProcess: (process) => set(() => ({ process: process })),
+  setOutputPath: (path) => set(() => ({ outputPath: path })),
+  setOutputDir: (dir) => set(() => ({ outputDir: dir })),
 }));
