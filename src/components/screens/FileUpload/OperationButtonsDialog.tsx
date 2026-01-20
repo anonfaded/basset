@@ -50,11 +50,6 @@ export default function OperationButtonsDialog() {
         <DialogTitle className="mb-2 text-center">
           {t("operationButtonsModal")}
         </DialogTitle>
-        
-        {/* TEMPORARY DEBUG INFO */}
-        <div className="bg-blue-400 text-white p-2 text-xs rounded mb-2">
-          Platform: {currentPlatform || "detecting..."} | Will use: {showDemucs ? "DEMUCS" : "SPLEETER"}
-        </div>
 
         {/* Quality downgrading: Video, Audio and Image */}
         <button

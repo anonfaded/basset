@@ -26,8 +26,12 @@
         "$VIDEO/*",
         "$AUDIO/*",
         "$PICTURE/*",
+        "$HOME/Downloads/*",
+        "$HOME/Downloads/**/*",
         "$DOWNLOADS/*",
         "$DOWNLOADS/**/*",
+        "$TEMP/*",
+        "$TEMP/**/*",
         "$APP/**/*"
       ]
     },

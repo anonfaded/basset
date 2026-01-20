@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { join, downloadDir, basename } from "@tauri-apps/api/path";
+import { join, downloadDir, basename, tempDir } from "@tauri-apps/api/path";
 import { Command } from "@tauri-apps/plugin-shell";
 
 import { deleteMediaTemp, ensureDir } from "@/utils/fsUtils";
@@ -59,8 +59,9 @@ function useDemucs() {
       // Build demucs command
       // For GPU: demucs --device mps --two-stems=vocals -n htdemucs --mp3 --mp3-bitrate 192 --out {outputDir} {filePath}
       // For CPU: demucs --device cpu --two-stems=vocals -n hdemucs_mmi --mp3 --mp3-bitrate 192 --out {outputDir} {filePath}
-      // Output to project root to avoid Tauri file watcher rebuild triggers
-      const demucsOutputRootDir = await join("..", "..", "demucs-output");
+      // Output to system temp directory to avoid Tauri file watcher rebuild triggers
+      const tempDirPath = await tempDir();
+      const demucsOutputRootDir = await join(tempDirPath, "basset-demucs-output");
       await ensureDir(demucsOutputRootDir);
       
       const args = [
@@ -131,7 +132,8 @@ function useDemucs() {
             
             // Demucs outputs to demucs-output/{model}/{originalFileName}/vocals.mp3
             const demucsModel = actualDevice === "mps" ? "htdemucs" : "hdemucs_mmi";
-            const demucsOutputRootDir = await join("..", "..", "demucs-output");
+            const tempDirPath = await tempDir();
+            const demucsOutputRootDir = await join(tempDirPath, "basset-demucs-output");
             const demucsOutputDir = await join(demucsOutputRootDir, demucsModel, filenameWithoutExt);
             const vocalsSourcePath = await join(demucsOutputDir, "vocals.mp3");
             console.log("Source vocals path:", vocalsSourcePath);

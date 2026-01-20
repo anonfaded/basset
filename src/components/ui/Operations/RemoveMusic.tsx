@@ -29,11 +29,6 @@ function RemoveMusic() {
 
   return (
     <div className="flex flex-col items-center gap-4">
-      {/* TEMPORARY DEBUG INDICATOR */}
-      <div className="bg-yellow-400 text-black p-4 font-bold text-xl rounded">
-        DEBUG: NEW RemoveMusic Component - operationType={operationType} isDemucs={isDemucs ? "TRUE" : "FALSE"}
-      </div>
-      
       <Alert dir={i18n.dir()} className="flex flex-row gap-1">
         <img
           draggable={false}
