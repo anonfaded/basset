@@ -68,7 +68,7 @@ function RemoveMusic() {
                   <span className="text-xs text-muted-foreground">
                     {t(
                       "removeMusic.gpuDescription",
-                      "Faster (1:06) - htdemucs"
+                      "~60% faster - uses GPU acceleration"
                     )}
                   </span>
                 </div>
@@ -81,7 +81,7 @@ function RemoveMusic() {
                   <span className="text-xs text-muted-foreground">
                     {t(
                       "removeMusic.cpuDescription",
-                      "Slower (2-2.5 min) - hdemucs_mmi"
+                      "~40% slower - uses CPU processing"
                     )}
                   </span>
                 </div>

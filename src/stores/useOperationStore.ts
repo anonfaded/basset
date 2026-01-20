@@ -19,6 +19,7 @@ type State = {
   process: Child | null;
   outputPath: string;
   outputDir: string;
+  eta: string;
 };
 
 type Action = {
@@ -28,6 +29,7 @@ type Action = {
   setProcess: (process: State["process"]) => void;
   setOutputPath: (path: string) => void;
   setOutputDir: (dir: string) => void;
+  setEta: (eta: string) => void;
 };
 
 export const useOperationStore = create<State & Action>((set) => ({
@@ -38,6 +40,7 @@ export const useOperationStore = create<State & Action>((set) => ({
   process: null,
   outputPath: "",
   outputDir: "",
+  eta: "",
   setOperationType: (type) => set(() => ({ operationType: type })),
   setCmdProcessing: (cmdProcessing) =>
     set(() => ({ cmdProcessing: cmdProcessing })),
@@ -48,4 +51,5 @@ export const useOperationStore = create<State & Action>((set) => ({
   setProcess: (process) => set(() => ({ process: process })),
   setOutputPath: (path) => set(() => ({ outputPath: path })),
   setOutputDir: (dir) => set(() => ({ outputDir: dir })),
+  setEta: (eta) => set(() => ({ eta: eta })),
 }));

@@ -76,6 +76,7 @@ function ExecuteBtn({
     cmdStatus: cmdStatusDemucs,
     progress: progressDemucs,
     errInfo: errInfoDemucs,
+    eta: etaDemucs,
   } = useDemucs();
   const {
     cmdStatus: cmdStatusImage,
@@ -120,7 +121,7 @@ function ExecuteBtn({
   const { t, i18n } = useTranslation();
 
   const { filePath } = useFileStore();
-  const { cmdProcessing, outputPath: storeOutputPath, outputDir: storeOutputDir } = useOperationStore();
+  const { cmdProcessing, outputPath: storeOutputPath, outputDir: storeOutputDir, eta: storeEta } = useOperationStore();
 
   async function onStartBtnClick() {
     try {
@@ -336,6 +337,13 @@ function ExecuteBtn({
             </button>
           )}
         </div>
+
+        {/* ETA Display */}
+        {cmdProcessing && (isDemucs ? storeEta : "") && (
+          <div className="text-sm text-muted-foreground">
+            Time remaining: <span className="font-semibold">{isDemucs ? storeEta : ""}</span>
+          </div>
+        )}
 
         {/* Kill command button */}
         {cmdProcessing && !isImage && (

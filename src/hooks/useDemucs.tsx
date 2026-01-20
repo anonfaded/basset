@@ -14,9 +14,10 @@ function useDemucs() {
   const [cmdStatus, setCmdStatus] = useState<"success" | "error" | null>(null);
   const [errInfo, setErrInfo] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
+  const [eta, setEta] = useState<string>("");
 
   const { filePath } = useFileStore();
-  const { setCmdProcessing, setLogs, process, setProcess, setOutputPath, setOutputDir } =
+  const { setCmdProcessing, setLogs, process, setProcess, setOutputPath, setOutputDir, setEta: setStoreEta } =
     useOperationStore();
 
   /**
@@ -236,6 +237,16 @@ function useDemucs() {
           setProgress(progressVal);
         }
 
+        // Extract ETA from format like: [00:04<00:01, 4.85seconds/s]
+        // This means 4 seconds elapsed, 1 second remaining
+        const etaMatch = data.match(/\[[\d:]+<([\d:]+),/);
+        if (etaMatch) {
+          const etaTime = etaMatch[1];
+          console.log("⏱️ ETA:", etaTime);
+          setEta(etaTime);
+          setStoreEta(etaTime);
+        }
+
         if (data.includes("No such file or directory")) {
           setErrInfo("inputFileErr");
         }
@@ -288,7 +299,7 @@ function useDemucs() {
     }
   }
 
-  return { killDemucs, runDemucs, cmdStatus, progress, errInfo };
+  return { killDemucs, runDemucs, cmdStatus, progress, errInfo, eta };
 }
 
 export default useDemucs;
