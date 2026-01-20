@@ -9,7 +9,7 @@ import { MediaType } from "@/stores/useFileStore";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/Dialog";
 import { Ripple } from "react-ripple-click";
 
-function OperationButtonsDialog() {
+export default function OperationButtonsDialog() {
   const { t, i18n } = useTranslation();
   const { filePath, setFilePath, mediaType } = useFileStore();
   const { setOperationType } = useOperationStore();
@@ -19,17 +19,27 @@ function OperationButtonsDialog() {
   useEffect(() => {
     const detectPlatform = async () => {
       const os = await platform();
+      console.log("🔍 [OperationButtonsDialog] Platform detected:", os);
       setCurrentPlatform(os);
       // Show Demucs for macOS and Linux, Spleeter for Windows
-      setShowDemucs(os === "darwin" || os === "linux");
+      // Note: platform() returns "macos" not "darwin"
+      const shouldShowDemucs = os === "macos" || os === "linux";
+      console.log("🔍 [OperationButtonsDialog] showDemucs set to:", shouldShowDemucs);
+      setShowDemucs(shouldShowDemucs);
     };
     detectPlatform();
   }, []);
 
   const handleMusicRemoval = () => {
+    console.log("🔍 [OperationButtonsDialog] handleMusicRemoval called");
+    console.log("🔍 [OperationButtonsDialog] showDemucs state:", showDemucs);
+    console.log("🔍 [OperationButtonsDialog] currentPlatform state:", currentPlatform);
+    
     if (showDemucs) {
+      console.log("🔍 [OperationButtonsDialog] Setting OperationType.DEMUCS");
       setOperationType(OperationType.DEMUCS);
     } else {
+      console.log("🔍 [OperationButtonsDialog] Setting OperationType.SPLEETER");
       setOperationType(OperationType.SPLEETER);
     }
   };
@@ -40,6 +50,11 @@ function OperationButtonsDialog() {
         <DialogTitle className="mb-2 text-center">
           {t("operationButtonsModal")}
         </DialogTitle>
+        
+        {/* TEMPORARY DEBUG INFO */}
+        <div className="bg-blue-400 text-white p-2 text-xs rounded mb-2">
+          Platform: {currentPlatform || "detecting..."} | Will use: {showDemucs ? "DEMUCS" : "SPLEETER"}
+        </div>
 
         {/* Quality downgrading: Video, Audio and Image */}
         <button

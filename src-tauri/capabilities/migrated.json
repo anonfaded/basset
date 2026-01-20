@@ -43,6 +43,11 @@
         },
         {
           "args": true,
+          "name": "demucs",
+          "cmd": "demucs"
+        },
+        {
+          "args": true,
           "name": "bin/ffmpeg",
           "sidecar": true
         },
@@ -78,6 +83,11 @@
         },
         {
           "args": true,
+          "name": "demucs",
+          "cmd": "demucs"
+        },
+        {
+          "args": true,
           "name": "bin/ffmpeg",
           "sidecar": true
         },
@@ -110,6 +120,11 @@
           "args": true,
           "name": "ffprobe",
           "cmd": "ffprobe"
+        },
+        {
+          "args": true,
+          "name": "demucs",
+          "cmd": "demucs"
         },
         {
           "args": true,

@@ -11,6 +11,10 @@ import MediaInfoSidebar from "./MediaInfoSidebar";
 function Operation() {
   const { operationType } = useOperationStore();
 
+  console.log("🔍 [Operation] operationType:", operationType);
+  console.log("🔍 [Operation] OperationType.DEMUCS:", OperationType.DEMUCS);
+  console.log("🔍 [Operation] OperationType.SPLEETER:", OperationType.SPLEETER);
+
   return (
     <div className="flex h-full w-full">
       <MediaInfoSidebar />

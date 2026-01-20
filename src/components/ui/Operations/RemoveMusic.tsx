@@ -1,6 +1,4 @@
 import { useTranslation } from "react-i18next";
-import { platform } from "@tauri-apps/plugin-os";
-import { useEffect, useState } from "react";
 
 import ExecuteBtn from "@/components/ui/ExecuteBtn";
 import { Alert, AlertDescription, AlertTitle } from "../Alert";
@@ -13,22 +11,17 @@ import {
   SelectValue,
 } from "../Select";
 import { useDemucsSettingStore, type DemucsDevice } from "@/stores/useDemucsSettingStore";
+import { OperationType, useOperationStore } from "@/stores/useOperationStore";
 
 function RemoveMusic() {
   const { t, i18n } = useTranslation();
   const { device, setDevice } = useDemucsSettingStore();
-  const [currentPlatform, setCurrentPlatform] = useState<string>("");
-  const [showDemucsOptions, setShowDemucsOptions] = useState(false);
+  const { operationType } = useOperationStore();
+  const isDemucs = operationType === OperationType.DEMUCS;
 
-  useEffect(() => {
-    const detectPlatform = async () => {
-      const os = await platform();
-      setCurrentPlatform(os);
-      // Show Demucs options for macOS and Linux
-      setShowDemucsOptions(os === "darwin" || os === "linux");
-    };
-    detectPlatform();
-  }, []);
+  console.log("🔍 [RemoveMusic] Rendered with operationType:", operationType);
+  console.log("🔍 [RemoveMusic] OperationType.DEMUCS value:", OperationType.DEMUCS);
+  console.log("🔍 [RemoveMusic] isDemucs:", isDemucs);
 
   const handleDeviceChange = (value: string) => {
     setDevice(value as DemucsDevice);
@@ -36,6 +29,11 @@ function RemoveMusic() {
 
   return (
     <div className="flex flex-col items-center gap-4">
+      {/* TEMPORARY DEBUG INDICATOR */}
+      <div className="bg-yellow-400 text-black p-4 font-bold text-xl rounded">
+        DEBUG: NEW RemoveMusic Component - operationType={operationType} isDemucs={isDemucs ? "TRUE" : "FALSE"}
+      </div>
+      
       <Alert dir={i18n.dir()} className="flex flex-row gap-1">
         <img
           draggable={false}
@@ -57,7 +55,7 @@ function RemoveMusic() {
       </Alert>
 
       {/* Device selection for macOS and Linux */}
-      {showDemucsOptions && (
+      {isDemucs && (
         <div className="flex flex-col gap-2 w-full max-w-[400px]">
           <Label className="text-sm font-medium">
             {t("removeMusic.deviceLabel", "Processing Device")}
@@ -99,8 +97,8 @@ function RemoveMusic() {
       )}
 
       <ExecuteBtn
-        isDemucs={showDemucsOptions}
-        isSpleeter={!showDemucsOptions}
+        isDemucs={isDemucs}
+        isSpleeter={!isDemucs}
         text={t("operations.spleeterBtn")}
       />
     </div>

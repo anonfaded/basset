@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { join, downloadDir } from "@tauri-apps/api/path";
+import { join, downloadDir, basename } from "@tauri-apps/api/path";
 import { Command } from "@tauri-apps/plugin-shell";
 
 import { deleteMediaTemp, ensureDir } from "@/utils/fsUtils";
@@ -57,8 +57,12 @@ function useDemucs() {
       await logger.flush();
 
       // Build demucs command
-      // For GPU: demucs --device mps --two-stems=vocals -n htdemucs --mp3 --mp3-bitrate 192 {filePath}
-      // For CPU: demucs --device cpu --two-stems=vocals -n hdemucs_mmi --mp3 --mp3-bitrate 192 {filePath}
+      // For GPU: demucs --device mps --two-stems=vocals -n htdemucs --mp3 --mp3-bitrate 192 --out {outputDir} {filePath}
+      // For CPU: demucs --device cpu --two-stems=vocals -n hdemucs_mmi --mp3 --mp3-bitrate 192 --out {outputDir} {filePath}
+      // Output to project root to avoid Tauri file watcher rebuild triggers
+      const demucsOutputRootDir = await join("..", "..", "demucs-output");
+      await ensureDir(demucsOutputRootDir);
+      
       const args = [
         "--device",
         actualDevice,
@@ -68,6 +72,8 @@ function useDemucs() {
         "--mp3",
         "--mp3-bitrate",
         "192",
+        "--out",
+        demucsOutputRootDir,
         filePath,
       ];
 
@@ -88,8 +94,8 @@ function useDemucs() {
           await logger.flush();
 
           try {
-            // Demucs outputs to ~/Music/separated/{model}/{originalFileName}/vocals.mp3 and accompaniment.mp3
-            // We need to move the vocals.mp3 to Downloads/Basset folder with timestamp
+            // Demucs outputs to demucs-output/{model}/{originalFileName}/vocals.mp3 and no_vocals.mp3
+            // We need to move vocals.mp3 to Downloads/Basset with timestamp
             
             const downDir = await downloadDir();
             const bassetOutputDir = await join(downDir, "Basset");
@@ -104,14 +110,36 @@ function useDemucs() {
             const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}_${String(now.getHours()).padStart(2, "0")}-${String(now.getMinutes()).padStart(2, "0")}-${String(now.getSeconds()).padStart(2, "0")}`;
             
             const vocalsFilename = `vocals_${timestamp}.mp3`;
-            
             const vocalsOutputPath = await join(bassetOutputDir, vocalsFilename);
 
-            logger.log(`Output files will be saved to: ${vocalsOutputPath}`);
+            // Get the original filename without extension
+            const originalBasename = await basename(filePath);
+            const filenameWithoutExt = originalBasename.substring(0, originalBasename.lastIndexOf('.')) || originalBasename;
+            
+            // Demucs outputs to demucs-output/{model}/{originalFileName}/vocals.mp3
+            const demucsModel = actualDevice === "mps" ? "htdemucs" : "hdemucs_mmi";
+            const demucsOutputRootDir = await join("..", "..", "demucs-output");
+            const demucsOutputDir = await join(demucsOutputRootDir, demucsModel, filenameWithoutExt);
+            const vocalsSourcePath = await join(demucsOutputDir, "vocals.mp3");
+
+            logger.log(`Moving vocals from: ${vocalsSourcePath}`);
+            logger.log(`To: ${vocalsOutputPath}`);
+            await logger.flush();
+
+            // Move vocals.mp3 to Downloads/Basset with timestamp
+            const { copyFile, remove } = await import("@tauri-apps/plugin-fs");
+            await copyFile(vocalsSourcePath, vocalsOutputPath);
+            logger.log("✅ Vocals file copied successfully");
+            await logger.flush();
+
+            // Delete the demucs-output directory to clean up
+            logger.log(`Cleaning up temporary files in: ${demucsOutputRootDir}`);
+            await remove(demucsOutputRootDir, { recursive: true });
+            logger.log("✅ Temporary files cleaned up");
             await logger.flush();
 
             setCmdStatus("success");
-            await logger.success("Music separation complete! Files saved to Downloads/Basset");
+            await logger.success(`Music separation complete! Vocals saved to: ${vocalsOutputPath}`);
             await logger.flush();
           } catch (err) {
             console.error("Error with output files:", err);
@@ -159,15 +187,6 @@ function useDemucs() {
         console.log("📊 Demucs stdout:", data);
         logger.log("Stdout: " + data.slice(0, 200));
         await logger.flush();
-
-        // Demucs uses progress bars like: "50%|██████▌                                                                    | 264.0/528.0"
-        const match = data.match(/(\d+)%\|/);
-        if (match) {
-          const progressVal = parseInt(match[1], 10);
-          console.log("📈 Progress update:", progressVal);
-          logger.log("Progress: " + progressVal + "%");
-          setProgress(progressVal);
-        }
       });
 
       demucsCmd.stderr.on("data", async (data: string) => {
@@ -175,6 +194,14 @@ function useDemucs() {
         console.log("⚠️ Demucs stderr:", data);
         logger.log("Stderr: " + data.slice(0, 200));
         await logger.flush();
+
+        // Demucs outputs progress bars to stderr like: "  1%|▋                                                           | 5.85/503.09999999999997"
+        const match = data.match(/(\d+)%\|/);
+        if (match) {
+          const progressVal = parseInt(match[1], 10);
+          console.log("📈 Progress update:", progressVal);
+          setProgress(progressVal);
+        }
 
         if (data.includes("No such file or directory")) {
           setErrInfo("inputFileErr");

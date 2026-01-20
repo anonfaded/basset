@@ -52,6 +52,10 @@ function ExecuteBtn({
   validation,
 }: ExecuteBtnProps) {
   const logger = createLogger("🎬 [ExecuteBtn]");
+  
+  // Detailed logging of received props
+  console.log("🔍 [ExecuteBtn] Component rendered with props - isSpleeter:", isSpleeter, "isDemucs:", isDemucs, "isImage:", isImage);
+  
   const {
     runFFmpeg,
     killFFmpeg,
